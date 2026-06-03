@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mileage">
+<meta name="theme-color" content="#0f1f1b">
+<title>Mileage Tracker</title>
+<style>
+  :root {
+    /* Core palette — dark green anchor, warm white, high-contrast accents */
+    --bg:          #f5f2eb;       /* warm off-white page */
+    --card:        #ffffff;
+    --ink:         #0f1f1b;       /* near-black — 16:1 on white, 12:1 on bg */
+    --ink2:        #3a4e49;       /* secondary text — 7:1 on white */
+    --border:      #c8c2b4;
+    --border-focus:#2a6b50;
+    --accent:      #2a6b50;       /* deep green — primary actions */
+    --accent-light:#e4f0ea;
+    --red:         #b83a22;       /* destructive / error */
+    --red-light:   #fcecea;
+    --gold:        #a07800;       /* deductible amount — 4.6:1 on white */
+    --gold-light:  #fdf6e3;
+    --shadow:      rgba(15,31,27,0.10);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  html { font-size: 18px; } /* base bump — everything scales from here */
+
+  body {
+    font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Layout ── */
+  .wrap { max-width: 520px; margin: 0 auto; padding: 0 16px 100px; }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0 16px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 0;
+  }
+  .header-left h1 {
+    font-size: 1.5rem;        /* 27px */
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+  }
+  .header-left .sub {
+    font-size: 0.78rem;       /* ~14px */
+    color: var(--ink2);
+    margin-top: 3px;
+    font-weight: 400;
+  }
+  .rate-badge {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ── Setup warning ── */
+  .setup-warn {
+    background: var(--gold-light); border: 1.5px solid var(--gold);
+    border-radius: 10px; padding: 14px 16px; margin: 14px 0;
+    font-size: 0.88rem; line-height: 1.5; color: var(--ink);
+  }
+  .setup-warn b { color: var(--red); }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 8px; margin: 16px 0; }
+  .tab {
+    flex: 1; padding: 14px 8px;
+    border: 2px solid var(--border);
+    background: var(--card); border-radius: 12px; cursor: pointer;
+    font-size: 0.88rem;      /* ~16px */
+    font-weight: 600; color: var(--ink2);
+    transition: all 0.15s; text-align: center;
+    -webkit-user-select: none;
+  }
+  .tab.active {
+    background: var(--ink); color: #fff;
+    border-color: var(--ink);
+  }
+  .tab:not(.active):active { background: var(--accent-light); }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 14px; padding: 20px; margin-bottom: 14px;
+    box-shadow: 0 2px 10px var(--shadow);
+  }
+  .card-label {
+    font-size: 0.72rem;        /* ~13px */
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--ink2);
+    margin-bottom: 14px;
+  }
+
+  /* ── Mic button ── */
+  .mic-btn {
+    width: 100%; padding: 20px 16px;
+    border: none; border-radius: 12px;
+    background: var(--red); color: #fff;
+    font-size: 1.05rem;         /* ~19px */
+    font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    transition: all 0.15s;
+    box-shadow: 0 3px 10px rgba(184,58,34,0.30);
+    -webkit-user-select: none;
+  }
+  .mic-btn:active { transform: scale(0.98); opacity: 0.9; }
+  .mic-btn.listening {
+    background: #8b2517;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 3px 10px rgba(184,58,34,0.30); }
+    50%      { box-shadow: 0 3px 28px rgba(184,58,34,0.65); }
+  }
+  .mic-icon { font-size: 1.3rem; }
+  .voice-hint {
+    font-size: 0.83rem;         /* ~15px */
+    color: var(--ink2);
+    margin-top: 12px;
+    line-height: 1.5;
+    font-style: italic;
+  }
+  .transcript {
+    margin-top: 12px; padding: 13px 15px;
+    background: var(--accent-light); border-radius: 9px;
+    font-size: 0.94rem;         /* ~17px */
+    font-style: italic; color: var(--ink);
+    display: none;
+    border-left: 3px solid var(--accent);
+  }
+  .transcript.show { display: block; }
+
+  /* ── Form fields ── */
+  .field { margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: block;
+    font-size: 0.78rem;          /* ~14px */
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--ink2);
+    margin-bottom: 7px;
+  }
+  .ac-wrap { position: relative; }
+  input[type="text"], input[type="date"], textarea {
+    width: 100%;
+    padding: 15px 16px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    font-size: 1rem;             /* 18px */
+    font-family: inherit;
+    background: #fff;
+    color: var(--ink);
+    transition: border-color 0.15s;
+    -webkit-appearance: none;    /* removes iOS inset shadow */
+    appearance: none;
+  }
+  input[type="text"]:focus,
+  input[type="date"]:focus,
+  textarea:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px rgba(42,107,80,0.15);
+  }
+  textarea { resize: vertical; min-height: 56px; line-height: 1.5; }
+
+  /* ── Place chips ── */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .chip {
+    padding: 9px 15px;
+    background: #fff; border: 2px solid var(--border);
+    border-radius: 20px;
+    font-size: 0.88rem;          /* ~16px */
+    font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all 0.15s;
+    -webkit-user-select: none;
+  }
+  .chip.home { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .chip:not(.home):active { background: var(--accent-light); border-color: var(--accent); }
+  .chip.home:active { opacity: 0.8; }
+
+  /* ── Autocomplete dropdown ── */
+  .ac-list {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+    background: #fff; border: 2px solid var(--border-focus); border-top: none;
+    border-radius: 0 0 10px 10px;
+    max-height: 240px; overflow-y: auto; display: none;
+    box-shadow: 0 8px 20px var(--shadow);
+  }
+  .ac-list.show { display: block; }
+  .ac-item {
+    padding: 14px 16px;          /* big tap target */
+    font-size: 0.94rem;          /* ~17px */
+    cursor: pointer;
+    border-bottom: 1px solid var(--bg);
+    color: var(--ink);
+    line-height: 1.4;
+  }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item:active, .ac-item.sel { background: var(--accent-light); }
+
+  /* ── Divider ── */
+  .divider {
+    border: none; border-top: 1.5px solid var(--border);
+    margin: 18px 0;
+  }
+
+  /* ── Calculate button (primary secondary action) ── */
+  .btn-calc {
+    width: 100%; padding: 15px;
+    background: var(--accent-light);
+    color: var(--accent);
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    font-size: 0.94rem;          /* ~17px */
+    font-weight: 700; cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-calc:active { background: var(--accent); color: #fff; }
+
+  /* ── Miles result ── */
+  .miles-box {
+    background: var(--ink); color: #fff;
+    border-radius: 12px; padding: 20px;
+    margin: 14px 0; display: none;
+    text-align: center;
+  }
+  .miles-box.show { display: block; }
+  .miles-num {
+    font-size: 3rem;             /* 54px — easy to glance at */
+    font-weight: 800; line-height: 1;
+    letter-spacing: -1px;
+  }
+  .miles-unit {
+    font-size: 0.88rem; opacity: 0.65;
+    margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;
+  }
+  .miles-dollar {
+    font-size: 1.3rem;           /* ~23px */
+    font-weight: 700; margin-top: 10px;
+    color: #f5c842;              /* gold on dark — 7:1 contrast */
+  }
+
+  /* ── Primary / ghost buttons ── */
+  .btn {
+    width: 100%; padding: 17px;
+    border-radius: 12px;
+    font-size: 1rem;             /* 18px */
+    font-weight: 700; cursor: pointer;
+    transition: all 0.15s;
+    border: 2px solid transparent;
+    -webkit-user-select: none;
+  }
+  .btn-primary {
+    background: var(--accent); color: #fff;
+    box-shadow: 0 3px 10px rgba(42,107,80,0.28);
+  }
+  .btn-primary:active { opacity: 0.88; transform: scale(0.99); }
+  .btn-primary:disabled { opacity: 0.38; cursor: not-allowed; box-shadow: none; }
+  .btn-ghost {
+    background: transparent; color: var(--ink2);
+    border-color: var(--border); margin-top: 10px;
+  }
+  .btn-ghost:active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+  /* ── Saved places list ── */
+  .place-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 0; border-bottom: 1.5px solid var(--bg);
+  }
+  .place-item:last-child { border-bottom: none; }
+  .pname {
+    font-size: 1rem;             /* 18px */
+    font-weight: 600; color: var(--ink);
+  }
+  .paddr {
+    font-size: 0.83rem;          /* ~15px */
+    color: var(--ink2); margin-top: 2px;
+  }
+  .pinfo { flex: 1; min-width: 0; }
+  .pinfo div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .del-btn {
+    background: var(--red-light); border: none;
+    color: var(--red); font-size: 1rem;
+    font-weight: 700; cursor: pointer;
+    padding: 8px 12px; border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  /* ── Trip history list ── */
+  .log-trip {
+    padding: 16px 0; border-bottom: 1.5px solid var(--bg);
+  }
+  .log-trip:last-child { border-bottom: none; }
+  .log-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .log-date {
+    font-size: 0.83rem;          /* ~15px */
+    color: var(--ink2); font-weight: 600;
+  }
+  .log-miles {
+    font-size: 1rem;             /* 18px */
+    font-weight: 700; color: var(--ink);
+  }
+  .log-route {
+    font-size: 0.94rem;          /* ~17px */
+    color: var(--ink); margin-bottom: 3px;
+    line-height: 1.4;
+  }
+  .log-purpose {
+    font-size: 0.83rem;          /* ~15px */
+    color: var(--ink2); font-style: italic;
+  }
+  .log-total {
+    background: var(--ink); color: #fff;
+    border-radius: 12px; padding: 18px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 16px;
+  }
+  .log-total-label {
+    font-size: 0.72rem; text-transform: uppercase;
+    letter-spacing: 1px; opacity: 0.6; margin-bottom: 4px;
+  }
+  .log-total-num {
+    font-size: 1.55rem;          /* ~28px */
+    font-weight: 800;
+  }
+  .log-total-money { color: #f5c842; }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center; color: var(--ink2);
+    padding: 32px 0; font-size: 0.94rem; font-style: italic;
+  }
+
+  /* ── Toast notification ── */
+  .toast {
+    position: fixed; bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(120px);
+    background: var(--ink); color: #fff;
+    padding: 15px 24px; border-radius: 32px;
+    font-size: 0.94rem;          /* ~17px */
+    font-weight: 600; z-index: 200;
+    transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+    max-width: 88%; text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.err   { background: var(--red); }
+  .toast.ok    { background: var(--accent); }
+
+  /* ── Spinner ── */
+  .spin {
+    display: inline-block; width: 18px; height: 18px;
+    border: 2.5px solid rgba(255,255,255,0.35);
+    border-top-color: #fff; border-radius: 50%;
+    animation: rot 0.7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes rot { to { transform: rotate(360deg); } }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="header-left">
+      <h1>Mileage Log</h1>
+      <div class="sub">Business Travel Tracker</div>
+    </div>
+    <div class="rate-badge" id="ratePill">$0.725 / mi</div>
+  </header>
+
+  <!-- ── Setup warning ── -->
+  <div id="setupWarn" class="setup-warn hidden">
+    <b>Setup needed:</b> Paste your Apps Script Web App URL into <code>BACKEND_URL</code> at the top of the script.
+  </div>
+
+  <!-- ── Tabs ── -->
+  <div class="tabs">
+    <div class="tab active" data-tab="log">+ New Trip</div>
+    <div class="tab" data-tab="history">History</div>
+    <div class="tab" data-tab="places">Places</div>
+  </div>
+
+  <!-- ══════════════ NEW TRIP ══════════════ -->
+  <section id="tab-log">
+
+    <!-- Voice card -->
+    <div class="card">
+      <div class="card-label">Voice Entry</div>
+      <button class="mic-btn" id="micBtn">
+        <span class="mic-icon">🎤</span>
+        <span id="micLabel">Tap &amp; Speak</span>
+      </button>
+      <div class="voice-hint">
+        Try: "Trip from home to 456 Ocean Ave Manhattan Beach, client meeting"
+      </div>
+      <div class="transcript" id="transcript"></div>
+    </div>
+
+    <!-- Trip details card -->
+    <div class="card">
+      <div class="card-label">Trip Details</div>
+
+      <div class="field">
+        <label for="fromAddr">From</label>
+        <div class="ac-wrap">
+          <input type="text" id="fromAddr" placeholder="Start address" autocomplete="off" inputmode="search">
+          <div class="ac-list" id="fromAc"></div>
+        </div>
+        <div class="chips" id="fromChips"></div>
+      </div>
+
+      <div class="field">
+        <label for="toAddr">To</label>
+        <div class="ac-wrap">
+          <input type="text" id="toAddr" placeholder="Destination" autocomplete="off" inputmode="search">
+          <div class="ac-list" id="toAc"></div>
+        </div>
+        <div class="chips" id="toChips"></div>
+      </div>
+
+      <div class="field">
+        <label for="tripDate">Date</label>
+        <input type="date" id="tripDate">
+      </div>
+
+      <div class="field">
+        <label for="purpose">Business Purpose</label>
+        <textarea id="purpose" placeholder="e.g. Client meeting, supply pickup" rows="2"></textarea>
+      </div>
+
+      <hr class="divider">
+
+      <button class="btn-calc" id="calcBtn">
+        <span>↻</span> Calculate Distance
+      </button>
+
+      <div class="miles-box" id="milesBox">
+        <div class="miles-num" id="milesNum">—</div>
+        <div class="miles-unit">Miles</div>
+        <div class="miles-dollar" id="milesDollar"></div>
+      </div>
+
+      <button class="btn btn-primary" id="logBtn" style="margin-top:14px;" disabled>
+        Log Trip
+      </button>
+      <button class="btn btn-ghost" id="clearBtn">Clear Form</button>
+    </div>
+
+  </section>
+
+  <!-- ══════════════ HISTORY ══════════════ -->
+  <section id="tab-history" class="hidden">
+    <div class="card">
+      <div class="card-label">Trip History</div>
+      <div id="logList"><div class="empty">Loading…</div></div>
+    </div>
+    <button class="btn btn-ghost" id="openSheetBtn">Open Full Spreadsheet ↗</button>
+  </section>
+
+  <!-- ══════════════ SAVED PLACES ══════════════ -->
+  <section id="tab-places" class="hidden">
+    <div class="card">
+      <div class="card-label">Saved Places</div>
+      <div id="placesList"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Add a Place</div>
+      <div class="field">
+        <label for="newPlaceName">Label</label>
+        <input type="text" id="newPlaceName" placeholder="e.g. Home, Office, Doctor">
+      </div>
+      <div class="field">
+        <label for="newPlaceAddr">Address</label>
+        <div class="ac-wrap">
+          <input type="text" id="newPlaceAddr" placeholder="Full address" autocomplete="off" inputmode="search">
+          <div class="ac-list" id="newPlaceAc"></div>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="addPlaceBtn">Save Place</button>
+    </div>
+  </section>
+
+</div><!-- /wrap -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIG — paste your Apps Script Web App URL between the quotes
+   ============================================================ */
+const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxHUxs8sFg96Pe3gFNcdpUzuDIvd5KfUVDPp54tHj9oSSH0rdUl5UIY_q2sPclcSlFi/exec"; // e.g. "https://script.google.com/macros/s/AKfy.../exec"
+
+const IRS_RATE = 0.725; // 2026 IRS standard business mileage rate ($/mi)
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let listening = false;
+let recog = null;
+const $ = id => document.getElementById(id);
+
+/* ── Saved places (localStorage — stays on device, never sent anywhere) ── */
+function getPlaces() {
+  try { return JSON.parse(localStorage.getItem('mt_places') || '[]'); }
+  catch { return []; }
+}
+function setPlaces(p) { localStorage.setItem('mt_places', JSON.stringify(p)); }
+
+/* ============================================================
+   BACKEND CALL (all API keys live server-side in Apps Script)
+   ============================================================ */
+async function callBackend(action, payload) {
+  if (!BACKEND_URL) { toast('Backend URL not set — see setup note', 'err'); throw new Error('no backend'); }
+  const res = await fetch(BACKEND_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, ...payload })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    ['log','history','places'].forEach(s => $('tab-'+s).classList.add('hidden'));
+    $('tab-'+t.dataset.tab).classList.remove('hidden');
+    if (t.dataset.tab === 'history') loadHistory();
+    if (t.dataset.tab === 'places') renderPlaces();
+    if (t.dataset.tab === 'log') renderChips();
+  };
+});
+
+/* ============================================================
+   SAVED PLACES UI
+   ============================================================ */
+function renderChips() {
+  const places = getPlaces();
+  ['from','to'].forEach(side => {
+    const box = $(side + 'Chips');
+    box.innerHTML = '';
+    places.forEach(p => {
+      const c = document.createElement('div');
+      const isHome = p.name.toLowerCase() === 'home';
+      c.className = 'chip' + (isHome ? ' home' : '');
+      c.innerHTML = (isHome ? '🏠 ' : '📍 ') + esc(p.name);
+      c.onclick = () => { $(side + 'Addr').value = p.address; };
+      box.appendChild(c);
+    });
+  });
+}
+
+function renderPlaces() {
+  const places = getPlaces();
+  const list = $('placesList');
+  if (!places.length) {
+    list.innerHTML = '<div class="empty">No saved places yet. Add one below.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  places.forEach((p, i) => {
+    const isHome = p.name.toLowerCase() === 'home';
+    const row = document.createElement('div');
+    row.className = 'place-item';
+    row.innerHTML =
+      `<div class="pinfo">
+         <div class="pname">${isHome ? '🏠 ' : '📍 '}${esc(p.name)}</div>
+         <div class="paddr">${esc(p.address)}</div>
+       </div>`;
+    const del = document.createElement('button');
+    del.className = 'del-btn';
+    del.textContent = 'Remove';
+    del.onclick = () => {
+      const arr = getPlaces();
+      arr.splice(i, 1);
+      setPlaces(arr);
+      renderPlaces();
+    };
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+$('addPlaceBtn').onclick = () => {
+  const name = $('newPlaceName').value.trim();
+  const addr = $('newPlaceAddr').value.trim();
+  if (!name || !addr) { toast('Enter both a name and address', 'err'); return; }
+  const arr = getPlaces();
+  arr.push({ name, address: addr });
+  setPlaces(arr);
+  $('newPlaceName').value = '';
+  $('newPlaceAddr').value = '';
+  renderPlaces();
+  toast('Place saved', 'ok');
+};
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+/* ============================================================
+   ADDRESS AUTOCOMPLETE (routed through Apps Script → Places API)
+   ============================================================ */
+function wireAutocomplete(inputId, listId) {
+  const input = $(inputId), list = $(listId);
+  let timer = null, sel = -1;
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 3 || !BACKEND_URL) { list.classList.remove('show'); return; }
+    timer = setTimeout(async () => {
+      try {
+        const data = await callBackend('autocomplete', { query: q });
+        const items = data.predictions || [];
+        sel = -1;
+        if (!items.length) { list.classList.remove('show'); return; }
+        list.innerHTML = '';
+        items.forEach(it => {
+          const d = document.createElement('div');
+          d.className = 'ac-item';
+          d.textContent = it;
+          d.onclick = () => { input.value = it; list.classList.remove('show'); };
+          list.appendChild(d);
+        });
+        list.classList.add('show');
+      } catch (e) { /* silent */ }
+    }, 350);
+  });
+
+  input.addEventListener('keydown', e => {
+    const opts = list.querySelectorAll('.ac-item');
+    if (!opts.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel+1, opts.length-1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel-1, 0); }
+    else if (e.key === 'Enter' && sel >= 0) { e.preventDefault(); opts[sel].click(); return; }
+    else return;
+    opts.forEach(o => o.classList.remove('sel'));
+    if (opts[sel]) opts[sel].classList.add('sel');
+  });
+
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !list.contains(e.target))
+      list.classList.remove('show');
+  });
+}
+wireAutocomplete('fromAddr', 'fromAc');
+wireAutocomplete('toAddr',   'toAc');
+wireAutocomplete('newPlaceAddr', 'newPlaceAc');
+
+/* ============================================================
+   DISTANCE CALCULATION
+   ============================================================ */
+let currentMiles = 0;
+$('calcBtn').onclick = calcDistance;
+
+async function calcDistance() {
+  const from = $('fromAddr').value.trim();
+  const to   = $('toAddr').value.trim();
+  if (!from || !to) { toast('Enter both addresses first', 'err'); return; }
+  $('calcBtn').innerHTML = '<span class="spin"></span> Calculating…';
+  try {
+    const data = await callBackend('distance', { from, to });
+    currentMiles = data.miles;
+    $('milesNum').textContent = data.miles.toFixed(1);
+    $('milesDollar').textContent = '$' + (data.miles * IRS_RATE).toFixed(2) + ' deductible';
+    $('milesBox').classList.add('show');
+    $('logBtn').disabled = false;
+  } catch (e) {
+    toast('Could not calculate distance', 'err');
+  }
+  $('calcBtn').innerHTML = '<span>↻</span> Calculate Distance';
+}
+
+/* ============================================================
+   LOG TRIP → Google Sheet
+   ============================================================ */
+$('logBtn').onclick = async () => {
+  const trip = {
+    date:    $('tripDate').value,
+    from:    $('fromAddr').value.trim(),
+    to:      $('toAddr').value.trim(),
+    purpose: $('purpose').value.trim(),
+    miles:   currentMiles,
+    amount:  +(currentMiles * IRS_RATE).toFixed(2)
+  };
+  if (!trip.date || !trip.from || !trip.to) {
+    toast('Fill in date and both addresses', 'err'); return;
+  }
+  $('logBtn').innerHTML = '<span class="spin"></span> Logging…';
+  $('logBtn').disabled = true;
+  try {
+    await callBackend('logTrip', { trip });
+    toast('Trip logged!', 'ok');
+    clearForm();
+  } catch (e) {
+    toast('Failed to log trip — try again', 'err');
+    $('logBtn').disabled = false;
+  }
+  $('logBtn').innerHTML = 'Log Trip';
+};
+
+$('clearBtn').onclick = clearForm;
+function clearForm() {
+  $('fromAddr').value = '';
+  $('toAddr').value = '';
+  $('purpose').value = '';
+  $('tripDate').valueAsDate = new Date();
+  $('milesBox').classList.remove('show');
+  $('logBtn').disabled = true;
+  $('transcript').classList.remove('show');
+  currentMiles = 0;
+}
+
+/* ============================================================
+   VOICE → Claude parsing
+   ============================================================ */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+$('micBtn').onclick = () => {
+  if (!SR) {
+    toast('Voice needs Safari or Chrome', 'err'); return;
+  }
+  if (listening) { recog && recog.stop(); return; }
+
+  recog = new SR();
+  recog.lang = 'en-US';
+  recog.interimResults = false;
+  recog.maxAlternatives = 1;
+
+  recog.onstart = () => {
+    listening = true;
+    $('micBtn').classList.add('listening');
+    $('micLabel').textContent = 'Listening… tap to stop';
+  };
+  recog.onresult = e => {
+    const text = e.results[0][0].transcript;
+    $('transcript').textContent = '\u201c' + text + '\u201d';
+    $('transcript').classList.add('show');
+    parseVoice(text);
+  };
+  recog.onerror = () => { toast('Didn\u2019t catch that \u2014 try again', 'err'); };
+  recog.onend = () => {
+    listening = false;
+    $('micBtn').classList.remove('listening');
+    $('micLabel').textContent = 'Tap & Speak';
+  };
+  recog.start();
+};
+
+async function parseVoice(text) {
+  $('micLabel').textContent = 'Understanding…';
+  try {
+    const data = await callBackend('parseTrip', {
+      text,
+      places: getPlaces(),
+      today: new Date().toISOString().slice(0, 10)
+    });
+    const t = data.trip || {};
+    if (t.from)    $('fromAddr').value  = t.from;
+    if (t.to)      $('toAddr').value    = t.to;
+    if (t.purpose) $('purpose').value   = t.purpose;
+    if (t.date)    $('tripDate').value  = t.date;
+    toast('Filled in \u2014 review &amp; log', 'ok');
+    if ($('fromAddr').value && $('toAddr').value) calcDistance();
+  } catch (e) {
+    toast('Couldn\u2019t parse \u2014 type it in', 'err');
+  }
+  $('micLabel').textContent = 'Tap & Speak';
+}
+
+/* ============================================================
+   HISTORY
+   ============================================================ */
+async function loadHistory() {
+  const list = $('logList');
+  list.innerHTML = '<div class="empty">Loading\u2026</div>';
+  try {
+    const data = await callBackend('getTrips', {});
+    const trips = data.trips || [];
+    if (!trips.length) {
+      list.innerHTML = '<div class="empty">No trips logged yet.</div>'; return;
+    }
+    list.innerHTML = '';
+    let totMiles = 0, totAmt = 0;
+    trips.slice().reverse().forEach(t => {
+      totMiles += Number(t.miles) || 0;
+      totAmt   += Number(t.amount) || 0;
+      const d = document.createElement('div');
+      d.className = 'log-trip';
+      d.innerHTML =
+        `<div class="log-head">
+           <span class="log-date">${esc(t.date)}</span>
+           <span class="log-miles">${(Number(t.miles)||0).toFixed(1)} mi</span>
+         </div>
+         <div class="log-route">${esc(t.from)} &rarr; ${esc(t.to)}</div>
+         <div class="log-purpose">${esc(t.purpose || '')}</div>`;
+      list.appendChild(d);
+    });
+    const tot = document.createElement('div');
+    tot.className = 'log-total';
+    tot.innerHTML =
+      `<div>
+         <div class="log-total-label">Year to Date</div>
+         <div class="log-total-num">${totMiles.toFixed(1)} mi</div>
+       </div>
+       <div style="text-align:right;">
+         <div class="log-total-label">Deductible</div>
+         <div class="log-total-num log-total-money">$${totAmt.toFixed(2)}</div>
+       </div>`;
+    list.appendChild(tot);
+  } catch (e) {
+    list.innerHTML = '<div class="empty">Couldn\u2019t load history.</div>';
+  }
+}
+
+$('openSheetBtn').onclick = async () => {
+  try {
+    const d = await callBackend('getSheetUrl', {});
+    if (d.url) window.open(d.url, '_blank');
+  } catch {
+    toast('Sheet URL unavailable', 'err');
+  }
+};
+
+/* ============================================================
+   TOAST + INIT
+   ============================================================ */
+let toastTimer = null;
+function toast(msg, type) {
+  const t = $('toast');
+  t.innerHTML = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+(function init() {
+  $('tripDate').valueAsDate = new Date();
+  $('ratePill').textContent = '$' + IRS_RATE.toFixed(3).replace(/0+$/, '') + ' / mi';
+  if (!BACKEND_URL) $('setupWarn').classList.remove('hidden');
+  renderChips();
+})();
+</script>
+</body>
+</html>
