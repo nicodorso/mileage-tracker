@@ -386,6 +386,61 @@
   @keyframes rot { to { transform: rotate(360deg); } }
 
   .hidden { display: none !important; }
+
+  /* ── Round trip toggle ── */
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 0; border-top: 1.5px solid var(--border); margin-top: 4px;
+  }
+  .toggle-label { font-size: 0.94rem; font-weight: 600; color: var(--ink); }
+  .toggle-sub { font-size: 0.78rem; color: var(--ink2); margin-top: 2px; }
+  .toggle {
+    position: relative; width: 52px; height: 30px; flex-shrink: 0;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute; inset: 0; background: var(--border);
+    border-radius: 15px; cursor: pointer; transition: background 0.2s;
+  }
+  .toggle-track::after {
+    content: ''; position: absolute;
+    width: 24px; height: 24px; top: 3px; left: 3px;
+    background: #fff; border-radius: 50%;
+    transition: transform 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .toggle input:checked + .toggle-track { background: var(--accent); }
+  .toggle input:checked + .toggle-track::after { transform: translateX(22px); }
+
+  /* ── Return trip prompt card ── */
+  .return-card {
+    background: var(--accent-light); border: 2px solid var(--accent);
+    border-radius: 14px; padding: 20px; margin-bottom: 14px;
+  }
+  .return-card .card-label { color: var(--accent); margin-bottom: 10px; }
+  .return-preview {
+    font-size: 0.94rem; color: var(--ink); margin-bottom: 14px; line-height: 1.5;
+  }
+  .return-date-row {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+  }
+  .return-date-row label {
+    font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--ink2); white-space: nowrap;
+  }
+  .return-date-row input { flex: 1; padding: 11px 14px; font-size: 0.94rem; }
+  .btn-return {
+    width: 100%; padding: 15px; border-radius: 12px;
+    background: var(--accent); color: #fff;
+    font-size: 0.94rem; font-weight: 700; cursor: pointer;
+    border: none; transition: all 0.15s;
+  }
+  .btn-return:active { opacity: 0.85; }
+  .btn-dismiss {
+    width: 100%; padding: 12px; border-radius: 12px;
+    background: transparent; color: var(--ink2);
+    font-size: 0.88rem; font-weight: 600; cursor: pointer;
+    border: 1.5px solid var(--border); margin-top: 8px; transition: all 0.15s;
+  }
 </style>
 </head>
 <body>
@@ -460,6 +515,18 @@
         <textarea id="purpose" placeholder="e.g. Client meeting, supply pickup" rows="2"></textarea>
       </div>
 
+      <!-- Round trip toggle -->
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Round Trip</div>
+          <div class="toggle-sub">Doubles mileage, logs as one entry</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="roundTrip">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+
       <hr class="divider">
 
       <button class="btn-calc" id="calcBtn">
@@ -477,6 +544,18 @@
       </button>
       <button class="btn btn-ghost" id="clearBtn">Clear Form</button>
     </div>
+
+  <!-- Return trip prompt (shown after logging a one-way trip) -->
+  <div id="returnCard" class="return-card hidden">
+    <div class="card-label">Log Return Trip?</div>
+    <div class="return-preview" id="returnPreview"></div>
+    <div class="return-date-row">
+      <label for="returnDate">Return Date</label>
+      <input type="date" id="returnDate">
+    </div>
+    <button class="btn-return" id="returnBtn">Log Return Trip</button>
+    <button class="btn-dismiss" id="returnDismiss">No thanks, I'm done</button>
+  </div>
 
   </section>
 
@@ -520,7 +599,7 @@
 /* ============================================================
    CONFIG — paste your Apps Script Web App URL between the quotes
    ============================================================ */
-const BACKEND_URL = "https://script.google.com/macros/s/AKfycby2dBA-LeV6fHVLdAO-IzxqszbhYRUxt0Wi8qNcEZZ2ss09_xqzUJxt8RQaRC2SeWlx/exec"
+const BACKEND_URL = ""; // e.g. "https://script.google.com/macros/s/AKfy.../exec"
 
 const IRS_RATE = 0.725; // 2026 IRS standard business mileage rate ($/mi)
 
@@ -698,9 +777,11 @@ async function calcDistance() {
   $('calcBtn').innerHTML = '<span class="spin"></span> Calculating…';
   try {
     const data = await callBackend('distance', { from, to });
-    currentMiles = data.miles;
-    $('milesNum').textContent = data.miles.toFixed(1);
-    $('milesDollar').textContent = '$' + (data.miles * IRS_RATE).toFixed(2) + ' deductible';
+    const isRT = $('roundTrip').checked;
+    currentMiles = isRT ? data.miles * 2 : data.miles;
+    $('milesNum').textContent = currentMiles.toFixed(1);
+    $('milesDollar').textContent = '$' + (currentMiles * IRS_RATE).toFixed(2) + ' deductible'
+      + (isRT ? ' · round trip' : '');
     $('milesBox').classList.add('show');
     $('logBtn').disabled = false;
   } catch (e) {
@@ -709,15 +790,24 @@ async function calcDistance() {
   $('calcBtn').innerHTML = '<span>↻</span> Calculate Distance';
 }
 
+// Recalculate when toggle changes (if miles already shown)
+$('roundTrip').onchange = () => {
+  if ($('milesBox').classList.contains('show')) calcDistance();
+};
+
 /* ============================================================
    LOG TRIP → Google Sheet
    ============================================================ */
 $('logBtn').onclick = async () => {
+  const isRT = $('roundTrip').checked;
+  const from = $('fromAddr').value.trim();
+  const to   = $('toAddr').value.trim();
+  const purpose = $('purpose').value.trim();
   const trip = {
     date:    $('tripDate').value,
-    from:    $('fromAddr').value.trim(),
-    to:      $('toAddr').value.trim(),
-    purpose: $('purpose').value.trim(),
+    from,
+    to,
+    purpose: isRT ? purpose + (purpose ? ' (round trip)' : 'Round trip') : purpose,
     miles:   currentMiles,
     amount:  +(currentMiles * IRS_RATE).toFixed(2)
   };
@@ -729,6 +819,10 @@ $('logBtn').onclick = async () => {
   try {
     await callBackend('logTrip', { trip });
     toast('Trip logged!', 'ok');
+    // If one-way, offer return trip prompt
+    if (!isRT) {
+      showReturnPrompt(to, from, purpose, trip.date);
+    }
     clearForm();
   } catch (e) {
     toast('Failed to log trip — try again', 'err');
@@ -737,12 +831,60 @@ $('logBtn').onclick = async () => {
   $('logBtn').innerHTML = 'Log Trip';
 };
 
+/* ============================================================
+   RETURN TRIP PROMPT
+   ============================================================ */
+let _returnFrom = '', _returnTo = '', _returnPurpose = '';
+
+function showReturnPrompt(from, to, purpose, outboundDate) {
+  _returnFrom    = from;
+  _returnTo      = to;
+  _returnPurpose = purpose;
+  // Default return date to today
+  $('returnDate').valueAsDate = new Date();
+  $('returnPreview').innerHTML =
+    '<strong>' + esc(from) + '</strong> &rarr; <strong>' + esc(to) + '</strong><br>'
+    + 'Tap below to log the return leg.';
+  $('returnCard').classList.remove('hidden');
+  // Scroll to the card
+  setTimeout(() => $('returnCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+}
+
+$('returnBtn').onclick = async () => {
+  const returnDate = $('returnDate').value;
+  if (!returnDate) { toast('Pick a return date', 'err'); return; }
+  // Calculate distance for return (same road distance as outbound)
+  $('returnBtn').innerHTML = '<span class="spin"></span> Logging…';
+  try {
+    const data = await callBackend('distance', { from: _returnFrom, to: _returnTo });
+    const returnTrip = {
+      date:    returnDate,
+      from:    _returnFrom,
+      to:      _returnTo,
+      purpose: _returnPurpose ? _returnPurpose + ' (return)' : 'Return trip',
+      miles:   data.miles,
+      amount:  +(data.miles * IRS_RATE).toFixed(2)
+    };
+    await callBackend('logTrip', { trip: returnTrip });
+    toast('Return trip logged!', 'ok');
+    $('returnCard').classList.add('hidden');
+  } catch (e) {
+    toast('Failed to log return trip', 'err');
+  }
+  $('returnBtn').innerHTML = 'Log Return Trip';
+};
+
+$('returnDismiss').onclick = () => {
+  $('returnCard').classList.add('hidden');
+};
+
 $('clearBtn').onclick = clearForm;
 function clearForm() {
   $('fromAddr').value = '';
   $('toAddr').value = '';
   $('purpose').value = '';
   $('tripDate').valueAsDate = new Date();
+  $('roundTrip').checked = false;
   $('milesBox').classList.remove('show');
   $('logBtn').disabled = true;
   $('transcript').classList.remove('show');
